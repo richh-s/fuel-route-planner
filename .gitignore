@@ -16,3 +16,7 @@ staticfiles/
 .DS_Store
 .vscode/
 .idea/
+
+# Downloaded reference data (see README: load_places)
+data/2024_Gaz_*.txt
+data/*.zip
