@@ -1,0 +1,25 @@
+[project]
+name = "fuel-route-planner"
+version = "1.0.0"
+description = "Django REST API that plans US driving routes with the cheapest fuel stops."
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # import sorting
+    "B",   # bugbear
+    "UP",  # modern Python syntax
+    "SIM", # simplifications
+    "DJ",  # Django conventions
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]

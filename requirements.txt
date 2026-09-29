@@ -1,6 +1,9 @@
 Django==6.1.1
 djangorestframework==3.18.1
 drf-spectacular==0.30.0
+gunicorn==26.2.0
 numpy==2.5.3
 python-dotenv==1.2.3
+redis==8.1.0
 requests==2.34.2
+whitenoise==6.12.0

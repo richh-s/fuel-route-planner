@@ -4,11 +4,11 @@ from urllib.parse import urlencode
 from django.shortcuts import render
 from django.urls import reverse
 from django.views import View
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
-from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
 
 from apps.common.exceptions import ServiceError
 from apps.routing.api.presenters import present_trip_plan

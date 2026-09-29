@@ -4,8 +4,14 @@ from apps.geodata.models import Place
 from apps.geodata.normalization import census_name_aliases, clean_census_name, place_key
 from apps.geodata.services import build_places, county_subdivision_candidates, place_candidates
 
-HEADER = "USPS\tGEOID\tANSICODE\tNAME\tLSAD\tFUNCSTAT\tALAND\tAWATER\tALAND_SQMI\tAWATER_SQMI\tINTPTLAT\tINTPTLONG   "
-SUBDIVISION_HEADER = "USPS\tGEOID\tANSICODE\tNAME\tFUNCSTAT\tALAND\tAWATER\tALAND_SQMI\tAWATER_SQMI\tINTPTLAT\tINTPTLONG"
+HEADER = "\t".join(
+    ["USPS", "GEOID", "ANSICODE", "NAME", "LSAD", "FUNCSTAT", "ALAND", "AWATER", "ALAND_SQMI", "AWATER_SQMI"]
+    + ["INTPTLAT", "INTPTLONG   "]  # the real file pads the last header with spaces
+)
+SUBDIVISION_HEADER = "\t".join(
+    ["USPS", "GEOID", "ANSICODE", "NAME", "FUNCSTAT", "ALAND", "AWATER", "ALAND_SQMI", "AWATER_SQMI"]
+    + ["INTPTLAT", "INTPTLONG"]
+)
 
 
 def place_row(state, name, lsad="25", area=10.0, lat=30.0, lon=-90.0):
@@ -38,7 +44,9 @@ class CensusNameTests(SimpleTestCase):
         self.assertEqual(clean_census_name("Big Cabin town"), "Big Cabin")
         self.assertEqual(clean_census_name("Town of Pecos city"), "Pecos")
         self.assertEqual(clean_census_name("Redford charter township"), "Redford")
-        self.assertEqual(clean_census_name("Nashville-Davidson metropolitan government (balance)"), "Nashville-Davidson")
+        self.assertEqual(
+            clean_census_name("Nashville-Davidson metropolitan government (balance)"), "Nashville-Davidson"
+        )
 
     def test_names_without_descriptor_are_kept_whole(self):
         self.assertEqual(clean_census_name("Carson City", has_descriptor=False), "Carson City")
