@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "apps.common",
     "apps.geodata",
     "apps.stations",
@@ -143,6 +144,7 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"]
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
     "EXCEPTION_HANDLER": "apps.common.exceptions.api_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     # Per-client rate limits (keyed by IP). Views opt in with `throttle_scope`.
     # Counters live in the default cache: set REDIS_URL so all workers share them.
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
@@ -150,6 +152,13 @@ REST_FRAMEWORK = {
     # 0 = use the socket address; only trust X-Forwarded-For when behind a known number of proxies.
     "NUM_PROXIES": int(os.environ.get("NUM_PROXIES", "0")),
     "UNAUTHENTICATED_USER": None,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Fuel Route Planner API",
+    "DESCRIPTION": "Plan US driving routes with the cheapest fuel stops for a 500-mile-range, 10 mpg vehicle.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 # Domain configuration for route planning.
