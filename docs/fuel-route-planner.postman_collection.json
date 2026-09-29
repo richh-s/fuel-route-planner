@@ -1,0 +1,474 @@
+{
+  "info": {
+    "name": "Fuel Route Planner API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Plan US driving routes with the cheapest fuel stops (500-mile range, 10 mpg).\n\nSet `base_url` (default http://localhost:8000). Run a trip request, then open `{{map_url}}` in a browser to see the map."
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "map_url",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Trips",
+      "item": [
+        {
+          "name": "Los Angeles → New York (cross-country)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/route/?start=Los Angeles, CA&finish=New York, NY",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Los Angeles, CA"
+                },
+                {
+                  "key": "finish",
+                  "value": "New York, NY"
+                }
+              ]
+            },
+            "description": "Coast to coast: several fuel stops. Send it twice: the second call is served from cache (meta.routing_api_calls = 0)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"has route geometry\", () => pm.expect(body.route.geometry.type).to.eql(\"LineString\"));",
+                  "pm.test(\"every stop is within the 500-mile range\", () => {",
+                  "  let last = 0;",
+                  "  body.fuel.stops.forEach(s => { pm.expect(s.mile_marker - last).to.be.at.most(500); last = s.mile_marker; });",
+                  "  pm.expect(body.route.distance_miles - last).to.be.at.most(500);",
+                  "});",
+                  "pm.test(\"total cost = sum of stops\", () => {",
+                  "  const sum = body.fuel.stops.reduce((t, s) => t + s.cost_usd, 0);",
+                  "  pm.expect(body.fuel.total_cost_usd).to.be.closeTo(sum, 0.05);",
+                  "});",
+                  "pm.test(\"at most one routing API call\", () => pm.expect(body.meta.routing_api_calls).to.be.at.most(1));",
+                  "pm.collectionVariables.set(\"map_url\", body.map_url);",
+                  "console.log(`Cost $${body.fuel.total_cost_usd}, ${body.fuel.number_of_stops} stops, map: ${body.map_url}`);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dallas → Chicago (JSON body)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start\": \"Dallas, TX\",\n  \"finish\": \"Chicago, IL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/route/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"has route geometry\", () => pm.expect(body.route.geometry.type).to.eql(\"LineString\"));",
+                  "pm.test(\"every stop is within the 500-mile range\", () => {",
+                  "  let last = 0;",
+                  "  body.fuel.stops.forEach(s => { pm.expect(s.mile_marker - last).to.be.at.most(500); last = s.mile_marker; });",
+                  "  pm.expect(body.route.distance_miles - last).to.be.at.most(500);",
+                  "});",
+                  "pm.test(\"total cost = sum of stops\", () => {",
+                  "  const sum = body.fuel.stops.reduce((t, s) => t + s.cost_usd, 0);",
+                  "  pm.expect(body.fuel.total_cost_usd).to.be.closeTo(sum, 0.05);",
+                  "});",
+                  "pm.test(\"at most one routing API call\", () => pm.expect(body.meta.routing_api_calls).to.be.at.most(1));",
+                  "pm.collectionVariables.set(\"map_url\", body.map_url);",
+                  "console.log(`Cost $${body.fuel.total_cost_usd}, ${body.fuel.number_of_stops} stops, map: ${body.map_url}`);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Coordinates with half a tank",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start\": \"32.7767,-96.7970\",\n  \"finish\": \"41.8781,-87.6298\",\n  \"start_fuel_gallons\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/route/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route"
+              ]
+            },
+            "description": "Locations as lat,lng and a custom starting fuel level."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"has route geometry\", () => pm.expect(body.route.geometry.type).to.eql(\"LineString\"));",
+                  "pm.test(\"every stop is within the 500-mile range\", () => {",
+                  "  let last = 0;",
+                  "  body.fuel.stops.forEach(s => { pm.expect(s.mile_marker - last).to.be.at.most(500); last = s.mile_marker; });",
+                  "  pm.expect(body.route.distance_miles - last).to.be.at.most(500);",
+                  "});",
+                  "pm.test(\"total cost = sum of stops\", () => {",
+                  "  const sum = body.fuel.stops.reduce((t, s) => t + s.cost_usd, 0);",
+                  "  pm.expect(body.fuel.total_cost_usd).to.be.closeTo(sum, 0.05);",
+                  "});",
+                  "pm.test(\"at most one routing API call\", () => pm.expect(body.meta.routing_api_calls).to.be.at.most(1));",
+                  "pm.collectionVariables.set(\"map_url\", body.map_url);",
+                  "console.log(`Cost $${body.fuel.total_cost_usd}, ${body.fuel.number_of_stops} stops, map: ${body.map_url}`);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Short trip, no stop needed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/route/?start=Austin, TX&finish=Houston, TX",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Austin, TX"
+                },
+                {
+                  "key": "finish",
+                  "value": "Houston, TX"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"has route geometry\", () => pm.expect(body.route.geometry.type).to.eql(\"LineString\"));",
+                  "pm.test(\"every stop is within the 500-mile range\", () => {",
+                  "  let last = 0;",
+                  "  body.fuel.stops.forEach(s => { pm.expect(s.mile_marker - last).to.be.at.most(500); last = s.mile_marker; });",
+                  "  pm.expect(body.route.distance_miles - last).to.be.at.most(500);",
+                  "});",
+                  "pm.test(\"total cost = sum of stops\", () => {",
+                  "  const sum = body.fuel.stops.reduce((t, s) => t + s.cost_usd, 0);",
+                  "  pm.expect(body.fuel.total_cost_usd).to.be.closeTo(sum, 0.05);",
+                  "});",
+                  "pm.test(\"at most one routing API call\", () => pm.expect(body.meta.routing_api_calls).to.be.at.most(1));",
+                  "pm.collectionVariables.set(\"map_url\", body.map_url);",
+                  "console.log(`Cost $${body.fuel.total_cost_usd}, ${body.fuel.number_of_stops} stops, map: ${body.map_url}`);",
+                  "pm.test(\"no stops needed\", () => pm.expect(pm.response.json().fuel.number_of_stops).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Route map (HTML)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/route/map/?start=Los Angeles, CA&finish=New York, NY",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route",
+                "map"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Los Angeles, CA"
+                },
+                {
+                  "key": "finish",
+                  "value": "New York, NY"
+                }
+              ]
+            },
+            "description": "Interactive Leaflet map. Best opened in a browser (Postman shows the HTML)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Errors",
+      "item": [
+        {
+          "name": "Unknown city → 422",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/route/?start=Atlantis, TX&finish=Chicago, IL",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Atlantis, TX"
+                },
+                {
+                  "key": "finish",
+                  "value": "Chicago, IL"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"error code is invalid_location\", () => pm.expect(pm.response.json().error.code).to.eql(\"invalid_location\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Outside the USA → 422",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/route/?start=51.5072,-0.1276&finish=Chicago, IL",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "51.5072,-0.1276"
+                },
+                {
+                  "key": "finish",
+                  "value": "Chicago, IL"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"error code is invalid_location\", () => pm.expect(pm.response.json().error.code).to.eql(\"invalid_location\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing parameter → 400",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/route/?start=Dallas, TX",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Dallas, TX"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error code is validation_error\", () => pm.expect(pm.response.json().error.code).to.eql(\"validation_error\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Operations",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/health/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "health"
+              ],
+              "query": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"stations loaded\", () => pm.expect(pm.response.json().stations_loaded).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OpenAPI schema",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/schema/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "schema"
+              ],
+              "query": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
