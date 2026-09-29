@@ -3,8 +3,10 @@ from urllib.parse import urlencode
 
 from django.shortcuts import render
 from django.urls import reverse
+from django.views import View
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.common.exceptions import ServiceError
@@ -28,6 +30,9 @@ def _plan(request, data):
     return present_trip_plan(plan, _map_url(request, serializer.validated_data), elapsed_ms)
 
 
+TRIP_PLAN_THROTTLE_SCOPE = "trip_plan"
+
+
 class TripPlanView(APIView):
     """Plan a US road trip with the cheapest fuel stops.
 
@@ -37,6 +42,8 @@ class TripPlanView(APIView):
     Optional: corridor_miles, start_fuel_gallons.
     """
 
+    throttle_scope = TRIP_PLAN_THROTTLE_SCOPE
+
     def get(self, request):
         return Response(_plan(request, request.query_params))
 
@@ -45,16 +52,37 @@ class TripPlanView(APIView):
 
 
 class HealthView(APIView):
+    throttle_classes = []  # load balancers poll this frequently
+
     def get(self, request):
         return Response({"status": "ok", "stations_loaded": len(get_station_index())})
 
 
-def trip_map_view(request):
-    """Interactive Leaflet map for a trip. Reuses the cached route, so it makes no routing API call."""
-    try:
-        plan = _plan(request, request.GET)
-    except ServiceError as exc:
-        return render(request, "routing/trip_map.html", {"error": exc.message}, status=exc.status_code)
-    except ValidationError as exc:
-        return render(request, "routing/trip_map.html", {"error": f"Invalid request: {exc.detail}"}, status=400)
-    return render(request, "routing/trip_map.html", {"plan": plan})
+class TripMapView(View):
+    """Interactive Leaflet map for a trip. Reuses the cached route, so it makes no routing API call.
+
+    A plain Django view (it renders HTML), sharing the API's rate limit.
+    """
+
+    template_name = "routing/trip_map.html"
+    throttle_scope = TRIP_PLAN_THROTTLE_SCOPE
+
+    def get(self, request):
+        throttle = ScopedRateThrottle()
+        if not throttle.allow_request(request, self):
+            response = self._error(request, "Too many requests. Please try again shortly.", status=429)
+            wait = throttle.wait()
+            if wait is not None:
+                response["Retry-After"] = str(int(wait) + 1)
+            return response
+
+        try:
+            plan = _plan(request, request.GET)
+        except ServiceError as exc:
+            return self._error(request, exc.message, exc.status_code)
+        except ValidationError as exc:
+            return self._error(request, f"Invalid request: {exc.detail}", status=400)
+        return render(request, self.template_name, {"plan": plan})
+
+    def _error(self, request, message: str, status: int):
+        return render(request, self.template_name, {"error": message}, status=status)

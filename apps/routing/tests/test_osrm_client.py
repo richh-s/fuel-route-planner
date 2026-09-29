@@ -1,10 +1,11 @@
 from unittest import mock
 
+import requests
 from django.test import SimpleTestCase
 
 from apps.common.exceptions import RouteNotFoundError, RoutingServiceUnavailable
 from apps.common.geo import Coordinates
-from apps.routing.clients.osrm import OSRMClient
+from apps.routing.clients.osrm import OSRMClient, build_session
 
 START = Coordinates(35.2, -101.83)
 FINISH = Coordinates(36.16, -86.78)
@@ -43,3 +44,21 @@ class OSRMClientTests(SimpleTestCase):
         client, _ = self.client_returning(fake_response(500, {"code": "Error"}))
         with self.assertRaises(RoutingServiceUnavailable):
             client.route(START, FINISH)
+
+    def test_rate_limited_by_osrm(self):
+        response = mock.Mock(status_code=429)
+        response.json.side_effect = ValueError("not json")
+        client, _ = self.client_returning(response)
+        with self.assertRaises(RoutingServiceUnavailable):
+            client.route(START, FINISH)
+
+    def test_network_error(self):
+        session = mock.Mock()
+        session.get.side_effect = requests.ConnectionError("down")
+        with self.assertRaises(RoutingServiceUnavailable):
+            OSRMClient("https://osrm.example", timeout=5, session=session).route(START, FINISH)
+
+    def test_default_session_retries_transient_errors_only(self):
+        retry = build_session().get_adapter("https://router.project-osrm.org").max_retries
+        self.assertEqual(retry.total, 2)
+        self.assertEqual(set(retry.status_forcelist), {502, 503, 504})

@@ -4,6 +4,7 @@ import numpy as np
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from rest_framework.throttling import ScopedRateThrottle
 
 from apps.common.exceptions import RouteNotFoundError
 from apps.geodata.models import Place
@@ -117,3 +118,33 @@ class TripPlanApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "leaflet")
         self.assertEqual(self.osrm.calls, 1)
+
+
+@override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}})
+class RateLimitTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        patcher = mock.patch.object(ScopedRateThrottle, "THROTTLE_RATES", {"trip_plan": "2/minute"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_trip_endpoints_are_rate_limited_per_client(self):
+        url = reverse("routing:trip-plan")
+        statuses = [self.client.get(url).status_code for _ in range(3)]  # invalid requests still count
+
+        self.assertEqual(statuses, [400, 400, 429])
+        response = self.client.get(url)
+        self.assertEqual(response.json()["error"]["code"], "throttled")
+        self.assertIn("Retry-After", response.headers)
+
+    def test_map_page_shares_the_limit(self):
+        self.client.get(reverse("routing:trip-plan"))
+        self.client.get(reverse("routing:trip-map"))
+        response = self.client.get(reverse("routing:trip-map"))
+        self.assertEqual(response.status_code, 429)
+        self.assertIn("Retry-After", response.headers)
+
+    def test_health_is_never_rate_limited(self):
+        with mock.patch("apps.routing.api.views.get_station_index", return_value=STATIONS):
+            statuses = {self.client.get(reverse("routing:health")).status_code for _ in range(5)}
+        self.assertEqual(statuses, {200})

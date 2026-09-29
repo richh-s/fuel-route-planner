@@ -13,6 +13,8 @@ import numpy as np
 import requests
 from django.conf import settings
 from django.core.cache import cache
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from apps.common.exceptions import RouteNotFoundError, RoutingServiceUnavailable
 from apps.common.geo import METERS_PER_MILE, Coordinates
@@ -21,6 +23,26 @@ from apps.common.polyline import decode_polyline
 logger = logging.getLogger(__name__)
 
 NO_ROUTE_CODES = {"NoRoute", "NoSegment", "NoMatch"}
+CONNECT_TIMEOUT_SECONDS = 3.05
+
+
+def build_session(retries: int = 2) -> requests.Session:
+    """HTTP session that retries transient failures (connection errors, 502/503/504) with backoff.
+
+    429 (rate limited) is deliberately not retried: hammering the server would make it worse.
+    """
+    retry = Retry(
+        total=retries,
+        backoff_factor=0.3,
+        status_forcelist=(502, 503, 504),
+        allowed_methods=frozenset({"GET"}),
+        raise_on_status=False,
+    )
+    session = requests.Session()
+    session.mount("https://", HTTPAdapter(max_retries=retry))
+    session.mount("http://", HTTPAdapter(max_retries=retry))
+    session.headers["User-Agent"] = "fuel-route-planner/1.0"
+    return session
 
 
 @dataclass(frozen=True)
@@ -34,7 +56,7 @@ class OSRMClient:
     def __init__(self, base_url: str, timeout: float, session: requests.Session | None = None):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self.session = session or requests.Session()
+        self.session = session or build_session()
 
     @classmethod
     def from_settings(cls) -> "OSRMClient":
@@ -48,11 +70,13 @@ class OSRMClient:
         params = {"overview": "full", "geometries": "polyline6", "steps": "false", "alternatives": "false"}
 
         try:
-            response = self.session.get(url, params=params, timeout=self.timeout)
+            response = self.session.get(url, params=params, timeout=(CONNECT_TIMEOUT_SECONDS, self.timeout))
         except requests.RequestException as exc:
             logger.warning("OSRM request failed: %s", exc)
             raise RoutingServiceUnavailable("The routing service could not be reached. Please retry.") from exc
 
+        if response.status_code == 429:
+            raise RoutingServiceUnavailable("The routing service is rate limiting requests. Please retry shortly.")
         try:
             payload = response.json()
         except ValueError as exc:
