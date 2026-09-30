@@ -13,7 +13,7 @@ from rest_framework.views import exception_handler
 class ServiceError(Exception):
     """Base class for errors raised by the service layer."""
 
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
     code = "service_error"
 
     def __init__(self, message: str, details: dict | None = None):

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 import numpy as np
 from django.conf import settings
@@ -9,7 +10,12 @@ from django.conf import settings
 from apps.common.exceptions import NoFuelPlanError, StationDataUnavailable
 from apps.common.geo import resample_polyline
 from apps.routing.clients.osrm import CachedRoutingClient, get_routing_client
-from apps.routing.services.corridor import StationOnRoute, cheapest_per_stretch, find_stations_along_route
+from apps.routing.services.corridor import (
+    StationOnRoute,
+    cheapest_per_stretch,
+    departure_station,
+    find_stations_along_route,
+)
 from apps.routing.services.fuel_optimizer import FuelPlan, InfeasibleRouteError, plan_fuel_stops
 from apps.routing.services.locations import ResolvedLocation, resolve_location
 from apps.stations.index import StationIndex, get_station_index
@@ -30,7 +36,7 @@ class TripRequest:
     start: str
     finish: str
     corridor_miles: float
-    start_fuel_gallons: float | None = None  # None = full tank
+    start_fuel_gallons: float | None = None  # None = empty tank: the trip's fuel is all bought (and costed)
 
 
 @dataclass(frozen=True)
@@ -47,6 +53,7 @@ class TripPlan:
     stations_on_route: tuple[StationOnRoute, ...]
     fuel_plan: FuelPlan
     routing_api_calls: int
+    prices_updated_at: datetime | None = None
 
     @property
     def total_fuel_needed_gallons(self) -> float:
@@ -89,8 +96,12 @@ class TripPlanner:
 
         stations = find_stations_along_route(index, latitudes, longitudes, miles, request.corridor_miles)
 
-        start_fuel = self.vehicle.tank_gallons if request.start_fuel_gallons is None else request.start_fuel_gallons
+        start_fuel = request.start_fuel_gallons or 0.0
         candidates = cheapest_per_stretch(stations, self.station_stretch_miles)
+        # The vehicle may fuel up before leaving; with an empty tank it has to.
+        departure = departure_station(index, start.coordinates, request.corridor_miles)
+        if departure is not None:
+            candidates = [departure, *candidates]
         try:
             fuel_plan = plan_fuel_stops(
                 candidates,
@@ -120,6 +131,7 @@ class TripPlanner:
             stations_on_route=tuple(stations),
             fuel_plan=fuel_plan,
             routing_api_calls=int(called_api),
+            prices_updated_at=index.prices_updated_at,
         )
 
 

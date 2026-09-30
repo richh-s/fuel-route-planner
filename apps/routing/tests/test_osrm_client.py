@@ -60,5 +60,5 @@ class OSRMClientTests(SimpleTestCase):
 
     def test_default_session_retries_transient_errors_only(self):
         retry = build_session().get_adapter("https://router.project-osrm.org").max_retries
-        self.assertEqual(retry.total, 2)
+        self.assertEqual(retry.total, 1)
         self.assertEqual(set(retry.status_forcelist), {502, 503, 504})

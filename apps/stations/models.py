@@ -4,6 +4,10 @@ from django.db import models
 class FuelStation(models.Model):
     """A truck stop and its retail diesel price, imported from the OPIS price file."""
 
+    class LocationPrecision(models.TextChoices):
+        CITY_CENTROID = "city_centroid", "Centre of the station's city"
+        EXACT = "exact", "Coordinates supplied by the price feed"
+
     opis_id = models.PositiveIntegerField(unique=True)
     name = models.CharField(max_length=255)
     address = models.CharField(max_length=255)
@@ -14,6 +18,9 @@ class FuelStation(models.Model):
     # Null when the station's city could not be geocoded; such stations are not used for routing.
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
+    location_precision = models.CharField(
+        max_length=16, choices=LocationPrecision.choices, default=LocationPrecision.CITY_CENTROID
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

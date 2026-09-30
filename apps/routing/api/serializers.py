@@ -15,7 +15,8 @@ class TripRequestSerializer(serializers.Serializer):
     start_fuel_gallons = serializers.FloatField(
         required=False,
         min_value=0,
-        help_text="Fuel in the tank at departure. Defaults to a full tank.",
+        help_text="Fuel already in the tank at departure. Defaults to 0, so the total cost covers all fuel "
+        "for the trip and the first fuel-up is at the start.",
     )
 
     def validate_corridor_miles(self, value):

@@ -14,7 +14,7 @@ class Place(models.Model):
         COUNTY_SUBDIVISION = "county_subdivision", "Census county subdivision (township/town)"
 
     # When two sources produce the same name in a state, the higher priority wins.
-    SOURCE_PRIORITY = {Source.PLACE: 3, Source.PLACE_ALIAS: 2, Source.COUNTY_SUBDIVISION: 1}
+    SOURCE_PRIORITY: dict[str, int] = {Source.PLACE: 3, Source.PLACE_ALIAS: 2, Source.COUNTY_SUBDIVISION: 1}
 
     state = models.CharField(max_length=2)
     name = models.CharField(max_length=128)

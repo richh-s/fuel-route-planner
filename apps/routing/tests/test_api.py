@@ -35,6 +35,7 @@ def station(opis_id, lon, price):
 
 STATIONS = StationIndex.from_records(
     [
+        station(10, -101.8, 3.20),  # in Amarillo, where the trips start
         station(1, -99.0, 3.50),
         station(2, -95.0, 2.90),
         station(3, -90.0, 3.80),
@@ -94,6 +95,53 @@ class TripPlanApiTests(TestCase):
         response = self.client.get(reverse("routing:trip-plan"), {"start": "Amarillo, TX"})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"]["code"], "validation_error")
+
+    def test_total_cost_covers_all_fuel_for_the_trip_by_default(self):
+        response = self.client.get(reverse("routing:trip-plan"), {"start": "Amarillo, TX", "finish": "Nashville, TN"})
+        body = response.json()
+
+        self.assertEqual(body["vehicle"]["start_fuel_gallons"], 0)
+        self.assertEqual(body["fuel"]["total_gallons_used"], 100.0)
+        self.assertAlmostEqual(body["fuel"]["total_gallons_purchased"], 100.0, places=1)
+        first = body["fuel"]["stops"][0]
+        self.assertEqual((first["mile_marker"], first["station"]["opis_id"]), (0.0, 10))
+        self.assertEqual(first["fuel_on_arrival_gallons"], 0)
+
+    def test_a_full_tank_at_departure_needs_no_fill_up_at_the_start(self):
+        trip = {"start": "Amarillo, TX", "finish": "Nashville, TN", "start_fuel_gallons": 50}
+        body = self.client.get(reverse("routing:trip-plan"), trip).json()
+
+        self.assertGreater(body["fuel"]["stops"][0]["mile_marker"], 0)
+        self.assertAlmostEqual(body["fuel"]["total_gallons_purchased"], 50.0, places=1)
+
+    def test_start_far_from_any_station_is_priced_at_the_nearest_one_and_says_so(self):
+        far_from_any_station = {"start": "35.2,-93.0", "finish": "Nashville, TN"}
+        body = self.client.get(reverse("routing:trip-plan"), far_from_any_station).json()
+
+        first = body["fuel"]["stops"][0]
+        self.assertEqual(first["mile_marker"], 0.0)
+        self.assertGreater(first["distance_from_route_miles"], 100)
+        self.assertIn("priced at the nearest one", body["assumptions"][-1])
+
+    def test_no_note_when_a_station_is_near_the_start(self):
+        trip = {"start": "Amarillo, TX", "finish": "Nashville, TN"}
+        body = self.client.get(reverse("routing:trip-plan"), trip).json()
+        self.assertNotIn("priced at the nearest one", " ".join(body["assumptions"]))
+
+    def test_out_of_range_options_are_rejected(self):
+        trip = {"start": "Amarillo, TX", "finish": "Nashville, TN"}
+        for option in ({"corridor_miles": 500}, {"corridor_miles": 0}, {"start_fuel_gallons": 51}):
+            with self.subTest(option=option):
+                response = self.client.get(reverse("routing:trip-plan"), {**trip, **option})
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(next(iter(option)), response.json()["error"]["details"])
+
+    def test_start_fuel_and_corridor_are_applied(self):
+        trip = {"start": "Amarillo, TX", "finish": "Nashville, TN", "corridor_miles": 5, "start_fuel_gallons": 20}
+        body = self.client.get(reverse("routing:trip-plan"), trip).json()
+        self.assertEqual(body["vehicle"]["start_fuel_gallons"], 20)
+        self.assertIn("within 5 miles", " ".join(body["assumptions"]))
+        self.assertEqual(body["fuel"]["stops"][0]["station"]["location_precision"], "city_centroid")
 
     def test_unknown_city_returns_422(self):
         response = self.client.get(reverse("routing:trip-plan"), {"start": "Atlantis, TX", "finish": "Nashville, TN"})
