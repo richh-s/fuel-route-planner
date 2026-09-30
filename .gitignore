@@ -15,11 +15,9 @@ htmlcov/
 .ruff_cache/
 
 # Environment
-.env
 
 # OS / editors
 .DS_Store
-.vscode/
 .idea/
 
 # Downloaded reference data (see README: load_places)
@@ -28,3 +26,9 @@ data/*.zip
 
 # Self-hosted OSRM routing data (see docs/deployment.md)
 osrm-data/
+config.bat
+node_modules
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
