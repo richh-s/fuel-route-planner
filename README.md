@@ -157,7 +157,6 @@ Full guide: [`docs/deployment.md`](docs/deployment.md).
 - **Observability:** JSON logs with a request ID, optional Sentry (`SENTRY_DSN`), and Prometheus metrics at `/metrics` (`METRICS_TOKEN`).
 - **Station data:** `import_fuel_stations` can run on a schedule (`--path` or `--url`); workers pick up new prices within a minute, without a restart.
 - **Admin:** off by default (`DJANGO_ADMIN_ENABLED`), because the bundled database is rebuilt with every image.
-- **CI:** GitHub Actions runs ruff, mypy, Django deploy checks, schema validation, tests with coverage, a dependency vulnerability scan, and builds and smoke-tests the Docker image. Version tags publish the image to GHCR.
 
 ---
 

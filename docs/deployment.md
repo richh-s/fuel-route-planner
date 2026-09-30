@@ -102,11 +102,9 @@ Prices are loaded from a CSV (`OPIS Truckstop ID, Truckstop Name, Address, City,
 
 Off by default. The API is stateless, and the database inside the image is replaced by every deploy, so admin accounts would not survive. To use it, mount a persistent volume at `/app/var`, set `DJANGO_ADMIN_ENABLED=true`, and create a user with `python manage.py createsuperuser`.
 
-## Releasing
+## Before a release
 
-CI (GitHub Actions) runs lint, type checks, deploy checks, tests with coverage and a dependency vulnerability scan, then builds the image and smoke-tests the running container. Pushing a tag `vX.Y.Z` also publishes the image to `ghcr.io/<owner>/<repo>:vX.Y.Z`. Deploying that tag to your platform is not automated here.
-
-Before a release that changes capacity-relevant code, run the load test against a staging deployment:
+Run the checks listed under "Development" in the README (tests, `ruff`, `mypy`, `manage.py check --deploy`), build the image, and run the load test against a staging deployment:
 
 ```bash
 python scripts/load_test.py --url https://staging.example --requests 1000 --concurrency 20 --api-key "$KEY"
