@@ -23,3 +23,29 @@ select = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["apps", "config"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+files = ["apps", "config", "scripts", "gunicorn.conf.py"]
+exclude = ["/migrations/", "/tests/"]
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings"
+
+[[tool.mypy.overrides]]
+module = ["drf_spectacular.*", "corsheaders.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["apps", "config"]
+branch = true
+omit = ["*/migrations/*", "*/tests/*", "config/asgi.py", "config/wsgi.py"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
