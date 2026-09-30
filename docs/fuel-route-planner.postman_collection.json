@@ -2,7 +2,7 @@
   "info": {
     "name": "Fuel Route Planner API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Plan US driving routes with the cheapest fuel stops (500-mile range, 10 mpg).\n\nSet `base_url` (default http://localhost:8000). Run a trip request, then open `{{map_url}}` in a browser to see the map."
+    "description": "Plan US driving routes with the cheapest fuel stops (500-mile range, 10 mpg).\n\nSet `base_url` (default http://localhost:8000). Run a trip request, then open `{{map_url}}` in a browser to see the map.\n\nIf the server enforces API keys (`API_KEYS`), set the `api_key` collection variable; it is sent as `X-API-Key` on every request. Leave it empty otherwise."
   },
   "variable": [
     {
@@ -11,6 +11,10 @@
     },
     {
       "key": "map_url",
+      "value": ""
+    },
+    {
+      "key": "api_key",
       "value": ""
     }
   ],
@@ -44,7 +48,7 @@
                 }
               ]
             },
-            "description": "Coast to coast: several fuel stops. Send it twice: the second call is served from cache (meta.routing_api_calls = 0)."
+            "description": "Coast to coast: several fuel stops. The vehicle starts empty, so the first stop (mile 0) is the fill-up before leaving and total_cost_usd covers all fuel for the trip. Send it twice: the second call is served from cache (meta.routing_api_calls = 0)."
           },
           "event": [
             {
@@ -66,7 +70,8 @@
                   "});",
                   "pm.test(\"at most one routing API call\", () => pm.expect(body.meta.routing_api_calls).to.be.at.most(1));",
                   "pm.collectionVariables.set(\"map_url\", body.map_url);",
-                  "console.log(`Cost $${body.fuel.total_cost_usd}, ${body.fuel.number_of_stops} stops, map: ${body.map_url}`);"
+                  "console.log(`Cost $${body.fuel.total_cost_usd}, ${body.fuel.number_of_stops} stops, map: ${body.map_url}`);",
+                  "pm.test(\"total cost covers all fuel burned\", () => pm.expect(body.fuel.total_gallons_purchased).to.be.closeTo(body.fuel.total_gallons_used, 0.1));"
                 ]
               }
             }
@@ -123,7 +128,8 @@
                   "});",
                   "pm.test(\"at most one routing API call\", () => pm.expect(body.meta.routing_api_calls).to.be.at.most(1));",
                   "pm.collectionVariables.set(\"map_url\", body.map_url);",
-                  "console.log(`Cost $${body.fuel.total_cost_usd}, ${body.fuel.number_of_stops} stops, map: ${body.map_url}`);"
+                  "console.log(`Cost $${body.fuel.total_cost_usd}, ${body.fuel.number_of_stops} stops, map: ${body.map_url}`);",
+                  "pm.test(\"total cost covers all fuel burned\", () => pm.expect(body.fuel.total_gallons_purchased).to.be.closeTo(body.fuel.total_gallons_used, 0.1));"
                 ]
               }
             }
@@ -188,12 +194,12 @@
           ]
         },
         {
-          "name": "Short trip, no stop needed",
+          "name": "Short trip on a full tank, no stop needed",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/v1/route/?start=Austin, TX&finish=Houston, TX",
+              "raw": "{{base_url}}/api/v1/route/?start=Austin, TX&finish=Houston, TX&start_fuel_gallons=50",
               "host": [
                 "{{base_url}}"
               ],
@@ -210,9 +216,14 @@
                 {
                   "key": "finish",
                   "value": "Houston, TX"
+                },
+                {
+                  "key": "start_fuel_gallons",
+                  "value": "50"
                 }
               ]
-            }
+            },
+            "description": "With start_fuel_gallons=50 the tank covers the whole trip, so nothing is bought."
           },
           "event": [
             {
@@ -409,7 +420,7 @@
       "name": "Operations",
       "item": [
         {
-          "name": "Health check",
+          "name": "Readiness (health check)",
           "request": {
             "method": "GET",
             "header": [],
@@ -424,7 +435,8 @@
                 "health"
               ],
               "query": []
-            }
+            },
+            "description": "200 when station data is loaded. `?deep=true` also probes the routing API."
           },
           "event": [
             {
@@ -434,6 +446,40 @@
                 "exec": [
                   "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
                   "pm.test(\"stations loaded\", () => pm.expect(pm.response.json().stations_loaded).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/health/live/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "health",
+                "live",
+                ""
+              ],
+              "query": []
+            },
+            "description": "200 while the process is up. Touches no dependencies."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status ok\", () => pm.expect(pm.response.json().status).to.eql(\"ok\"));"
                 ]
               }
             }
@@ -470,5 +516,25 @@
         }
       ]
     }
-  ]
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  }
 }
