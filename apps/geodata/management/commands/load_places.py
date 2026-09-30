@@ -22,13 +22,14 @@ class Command(BaseCommand):
                 f"Places file not found at {places}.\n"
                 f"Download {GAZETTEER_BASE_URL}{places.stem}.zip and unzip it into {places.parent}/"
             )
+        subdivisions: Path | None = county_subdivisions
         if not county_subdivisions.exists():
             self.stdout.write(
                 self.style.WARNING(
                     f"County subdivisions file not found at {county_subdivisions}; townships will not be matched."
                 )
             )
-            county_subdivisions = None
+            subdivisions = None
 
-        count = load_places_from_gazetteers(places, county_subdivisions)
+        count = load_places_from_gazetteers(places, subdivisions)
         self.stdout.write(self.style.SUCCESS(f"Loaded {count} places."))

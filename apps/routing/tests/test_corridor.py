@@ -1,8 +1,13 @@
 import numpy as np
 from django.test import SimpleTestCase
 
-from apps.common.geo import cumulative_miles
-from apps.routing.services.corridor import StationOnRoute, cheapest_per_stretch, find_stations_along_route
+from apps.common.geo import Coordinates, cumulative_miles
+from apps.routing.services.corridor import (
+    StationOnRoute,
+    cheapest_per_stretch,
+    departure_station,
+    find_stations_along_route,
+)
 from apps.stations.index import StationIndex, StationRecord
 
 
@@ -44,3 +49,29 @@ class CheapestPerStretchTests(SimpleTestCase):
         stations = [on_route(1, 0, 3.2), on_route(2, 10, 3.0), on_route(3, 20, 3.1), on_route(4, 40, 3.5)]
         kept = cheapest_per_stretch(stations, stretch_miles=25)
         self.assertEqual([s.record.opis_id for s in kept], [2, 4])
+
+
+class DepartureStationTests(SimpleTestCase):
+    START = Coordinates(35.0, -100.0)
+
+    def test_picks_the_cheapest_station_near_the_start(self):
+        index = StationIndex.from_records(
+            [
+                record(1, 35.01, -100.0, price=3.4),  # closest
+                record(2, 35.05, -100.0, price=3.1),  # ~3.5 miles away but cheaper
+                record(3, 35.50, -100.0, price=2.0),  # cheapest, but ~35 miles away
+            ]
+        )
+        chosen = departure_station(index, self.START, search_miles=10)
+
+        self.assertEqual(chosen.record.opis_id, 2)
+        self.assertEqual(chosen.mile_marker, 0.0)
+        self.assertAlmostEqual(chosen.distance_from_route_miles, 3.45, delta=0.1)
+
+    def test_falls_back_to_the_nearest_station_when_none_is_close(self):
+        index = StationIndex.from_records([record(1, 35.5, -100.0, 3.4), record(2, 35.3, -100.0, 3.9)])
+        chosen = departure_station(index, self.START, search_miles=10)
+        self.assertEqual(chosen.record.opis_id, 2)
+
+    def test_none_without_any_stations(self):
+        self.assertIsNone(departure_station(StationIndex.from_records([]), self.START, 10))

@@ -31,7 +31,8 @@ _EPSILON = 1e-7
 
 
 class RoutedStation(Protocol):
-    mile_marker: float
+    @property
+    def mile_marker(self) -> float: ...
 
     @property
     def price(self) -> float: ...

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from apps.common.geo import EARTH_RADIUS_MILES, unit_vectors
+from apps.common.geo import EARTH_RADIUS_MILES, Coordinates, haversine_miles, unit_vectors
 from apps.stations.index import StationIndex, StationRecord
 
 _CHUNK_SIZE = 512
@@ -32,7 +32,7 @@ class StationOnRoute:
 
 def _bounding_box_mask(index: StationIndex, lat: np.ndarray, lon: np.ndarray, margin_miles: float) -> np.ndarray:
     lat_margin = margin_miles / _MILES_PER_DEGREE_LAT
-    widest = np.cos(np.radians(min(abs(lat).max() + lat_margin, 89.0)))
+    widest = np.cos(np.radians(min(float(np.abs(lat).max()) + lat_margin, 89.0)))
     lon_margin = margin_miles / (_MILES_PER_DEGREE_LAT * widest)
     return (
         (index.latitude >= lat.min() - lat_margin)
@@ -81,6 +81,23 @@ def find_stations_along_route(
     ]
     stations.sort(key=lambda s: (s.mile_marker, s.price))
     return stations
+
+
+def departure_station(index: StationIndex, start: Coordinates, search_miles: float) -> StationOnRoute | None:
+    """Where the vehicle fuels up before setting off (mile 0 of the route).
+
+    The cheapest station within `search_miles` of the start. The price file
+    lists truck stops, and big cities often have none nearby (the closest to
+    downtown Los Angeles is about 50 miles out), so if there is none the
+    nearest station anywhere is used as the price for fuel bought at the start.
+    Its `distance_from_route_miles` says how far from the start it really is.
+    """
+    if len(index) == 0:
+        return None
+    distances = haversine_miles(start.latitude, start.longitude, index.latitude, index.longitude)
+    nearby = np.flatnonzero(distances <= search_miles)
+    chosen = int(nearby[np.argmin(index.price[nearby])]) if nearby.size else int(np.argmin(distances))
+    return StationOnRoute(index.records[chosen], 0.0, float(distances[chosen]))
 
 
 def cheapest_per_stretch(stations: list[StationOnRoute], stretch_miles: float) -> list[StationOnRoute]:

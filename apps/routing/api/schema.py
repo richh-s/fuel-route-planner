@@ -9,7 +9,8 @@ from rest_framework import serializers
 
 class LocationSchema(serializers.Serializer):
     query = serializers.CharField(help_text="The input as given.")
-    label = serializers.CharField(help_text="Resolved place, e.g. 'Dallas, TX'.")
+    # `label` is also an attribute of DRF's Field; declaring a field with that name is fine at runtime.
+    label = serializers.CharField(help_text="Resolved place, e.g. 'Dallas, TX'.")  # type: ignore[assignment]
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
 
@@ -36,6 +37,11 @@ class StationSchema(serializers.Serializer):
     state = serializers.CharField()
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
+    location_precision = serializers.ChoiceField(
+        choices=["city_centroid", "exact"],
+        help_text="'exact' when the price feed supplied coordinates; 'city_centroid' when the station "
+        "is placed at the centre of its city.",
+    )
 
 
 class FuelStopSchema(serializers.Serializer):
@@ -67,6 +73,7 @@ class VehicleSchema(serializers.Serializer):
 class MetaSchema(serializers.Serializer):
     routing_api_calls = serializers.IntegerField(help_text="1 on a fresh route, 0 when served from cache.")
     stations_along_route = serializers.IntegerField()
+    prices_updated_at = serializers.DateTimeField(allow_null=True, help_text="When fuel prices were last imported.")
     elapsed_ms = serializers.FloatField()
 
 
@@ -91,6 +98,21 @@ class ErrorResponseSchema(serializers.Serializer):
     error = ErrorDetailSchema()
 
 
+class LivenessResponseSchema(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["ok"])
+
+
+class HealthChecksSchema(serializers.Serializer):
+    stations = serializers.CharField(help_text="'ok' or 'unavailable'.")
+    cache = serializers.CharField(help_text="'ok' or 'unavailable'.")
+    routing = serializers.CharField(required=False, help_text="'ok' or 'unavailable'. Only with `?deep=true`.")
+
+
 class HealthResponseSchema(serializers.Serializer):
-    status = serializers.CharField()
+    status = serializers.ChoiceField(
+        choices=["ok", "degraded", "unavailable"],
+        help_text="'degraded': serving, but without the shared cache or the routing API.",
+    )
     stations_loaded = serializers.IntegerField()
+    prices_updated_at = serializers.DateTimeField(allow_null=True)
+    checks = HealthChecksSchema()
