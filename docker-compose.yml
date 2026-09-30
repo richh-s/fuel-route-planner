@@ -1,0 +1,49 @@
+# Local production-like stack: gunicorn app + Redis (shared route cache and rate-limit counters).
+#   docker compose up --build
+#   open http://localhost:8000/api/docs/
+#
+# With a self-hosted routing engine (see docs/deployment.md for preparing ./osrm-data):
+#   OSRM_BASE_URL=http://osrm:5000 docker compose --profile osrm up --build
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-compose-secret-change-me}
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      # No TLS terminator locally, so don't redirect to https.
+      DJANGO_SECURE_SSL_REDIRECT: "false"
+      REDIS_URL: redis://redis:6379/0
+      OSRM_BASE_URL: ${OSRM_BASE_URL:-https://router.project-osrm.org}
+      API_KEYS: ${API_KEYS:-}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # A cache, not a database: bound its memory and evict the least recently used routes.
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  osrm:
+    profiles: ["osrm"]
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    command: ["osrm-routed", "--algorithm", "mld", "/data/region.osrm"]
+    volumes:
+      - ./osrm-data:/data:ro
+    restart: unless-stopped

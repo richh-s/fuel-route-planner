@@ -7,7 +7,12 @@ venv/
 # Django
 db.sqlite3
 staticfiles/
+var/
 *.log
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
 # Environment
 .env
@@ -20,3 +25,6 @@ staticfiles/
 # Downloaded reference data (see README: load_places)
 data/2024_Gaz_*.txt
 data/*.zip
+
+# Self-hosted OSRM routing data (see docs/deployment.md)
+osrm-data/
